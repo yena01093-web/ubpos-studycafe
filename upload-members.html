@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>회원 데이터 업로드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: #f5f6f8; color: #333; font-size: 14px; padding: 40px 20px; }
+  .wrap { max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .sub { color: #888; font-size: 13px; margin-bottom: 28px; }
+  .card { background: white; border-radius: 10px; border: 1px solid #ececec; padding: 24px; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #222; }
+  .drop-zone {
+    border: 2px dashed #d0d5dd;
+    border-radius: 8px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fafafa;
+  }
+  .drop-zone:hover, .drop-zone.drag { border-color: #4a7ef5; background: #f0f4ff; }
+  .drop-zone .icon { font-size: 36px; margin-bottom: 10px; }
+  .drop-zone .label { font-size: 14px; color: #555; }
+  .drop-zone .hint { font-size: 12px; color: #aaa; margin-top: 4px; }
+  input[type=file] { display: none; }
+  .preview { margin-top: 16px; }
+  .preview-title { font-size: 12px; color: #888; margin-bottom: 8px; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .preview-table th { background: #f8f9fa; padding: 7px 10px; text-align: left; color: #888; font-weight: 500; border-bottom: 1px solid #eee; }
+  .preview-table td { padding: 7px 10px; border-bottom: 1px solid #f5f5f5; }
+  .progress-wrap { margin-top: 16px; display: none; }
+  .progress-bar { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+  .progress-fill { height: 100%; background: #4a7ef5; width: 0%; transition: width 0.3s; border-radius: 4px; }
+  .progress-text { font-size: 12px; color: #666; }
+  .btn {
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    margin-top: 16px;
+  }
+  .btn-primary { background: #4a7ef5; color: white; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+  .btn-danger { background: #fee2e2; color: #dc2626; }
+  .btn-danger:hover { background: #fecaca; }
+  .result-item { padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 6px; }
+  .result-ok { background: #f0fdf4; color: #16a34a; }
+  .result-err { background: #fef2f2; color: #dc2626; }
+  .stat-row { display: flex; gap: 12px; margin-top: 12px; }
+  .stat-box { flex: 1; text-align: center; padding: 12px; background: #f8f9fa; border-radius: 8px; }
+  .stat-box .num { font-size: 22px; font-weight: 700; color: #4a7ef5; }
+  .stat-box .label { font-size: 11px; color: #aaa; margin-top: 2px; }
+  .warn { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #92400e; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📥 회원 데이터 Firebase 업로드</h1>
+  <p class="sub">픽코파트너스에서 다운받은 회원목록 엑셀을 ubpos Firebase에 업로드합니다.</p>
+
+  <div class="warn">
+    ⚠️ 업로드 전 확인: 기존 Firebase 회원 데이터가 있으면 중복될 수 있어요. 처음 올리는 경우에만 사용하세요.
+  </div>
+
+  <div class="card">
+    <div class="card-title">1. 엑셀 파일 선택</div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="handleDrop(event)">
+      <div class="icon">📄</div>
+      <div class="label">엑셀 파일을 여기에 끌어다 놓거나 클릭하세요</div>
+      <div class="hint">회원목록.xlsx (픽코파트너스 형식)</div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+
+    <div class="preview" id="preview" style="display:none">
+      <div class="preview-title" id="previewTitle"></div>
+      <div style="overflow-x:auto">
+        <table class="preview-table" id="previewTable"></table>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="num" id="statTotal">0</div><div class="label">전체</div></div>
+        <div class="stat-box"><div class="num" id="statActive" style="color:#16a34a">0</div><div class="label">이용중</div></div>
+        <div class="stat-box"><div class="num" id="statEnd" style="color:#9ca3af">0</div><div class="label">이용종료</div></div>
+        <div class="stat-box"><div class="num" id="statNone" style="color:#f59e0b">0</div><div class="label">이용안함</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="uploadCard" style="display:none">
+    <div class="card-title">2. Firebase 업로드</div>
+    <p style="font-size:13px;color:#666;margin-bottom:12px">아래 버튼을 누르면 전체 회원 데이터가 Firebase에 업로드됩니다.</p>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">준비중...</div>
+    </div>
+    <button class="btn btn-primary" id="uploadBtn" onclick="startUpload()">🚀 업로드 시작</button>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="card-title">3. 결과</div>
+    <div id="resultBody"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, writeBatch, doc, Timestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyB3GpTi8-EZ-JQ5ZAzVPaHqFaDXwBJntBQ",
+  authDomain: "ubpos-studycafe.firebaseapp.com",
+  projectId: "ubpos-studycafe",
+  storageBucket: "ubpos-studycafe.firebasestorage.app",
+  messagingSenderId: "693479765771",
+  appId: "1:693479765771:web:6ef7f98a7a61f1635b140e"
+});
+const db = getFirestore(app);
+window._db = db;
+window._fbCol = collection;
+window._fbBatch = writeBatch;
+window._fbDoc = doc;
+window._fbTs = Timestamp;
+
+let parsedData = [];
+
+window.handleDrop = function(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+};
+
+window.handleFile = function(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    const headers = raw[0];
+    const rows = raw.slice(1).filter(r => r.some(v => v !== ''));
+
+    parsedData = rows.map(r => {
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = r[i] ?? '');
+      return obj;
+    });
+
+    // 미리보기
+    const preview = document.getElementById('preview');
+    const previewTable = document.getElementById('previewTable');
+    preview.style.display = 'block';
+    document.getElementById('previewTitle').textContent = `📋 미리보기 (상위 5개 / 전체 ${parsedData.length}명)`;
+
+    const cols = ['No','구분','성별','이름','상태','휴대폰','이용상태','좌석타입','이용권','시작일','종료일'];
+    const thead = `<thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>`;
+    const tbody = parsedData.slice(0,5).map(r =>
+      `<tr>${cols.map(c=>`<td>${r[c]??''}</td>`).join('')}</tr>`
+    ).join('');
+    previewTable.innerHTML = thead + `<tbody>${tbody}</tbody>`;
+
+    // 통계
+    const active = parsedData.filter(r => r['이용상태']==='이용중').length;
+    const ended = parsedData.filter(r => r['이용상태']==='이용종료').length;
+    const none = parsedData.filter(r => r['이용상태']==='이용안함').length;
+    document.getElementById('statTotal').textContent = parsedData.length;
+    document.getElementById('statActive').textContent = active;
+    document.getElementById('statEnd').textContent = ended;
+    document.getElementById('statNone').textContent = none;
+
+    document.getElementById('uploadCard').style.display = 'block';
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+window.startUpload = async function() {
+  if (!parsedData.length) return;
+
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = '업로드 중...';
+
+  const progressWrap = document.getElementById('progressWrap');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  progressWrap.style.display = 'block';
+
+  const db = window._db;
+  const col = window._fbCol;
+  const batch = window._fbBatch;
+  const docRef = window._fbDoc;
+  const Ts = window._fbTs;
+
+  const total = parsedData.length;
+  let done = 0, errors = 0;
+  const BATCH_SIZE = 400; // Firestore 배치 제한 500 이하
+
+  try {
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+      const chunk = parsedData.slice(i, i + BATCH_SIZE);
+      const b = batch(db);
+
+      chunk.forEach(row => {
+        const ref = docRef(col(db, 'members'));
+        const statusMap = { '이용중': 'active', '이용종료': 'ended', '이용안함': 'none' };
+
+        // 날짜 파싱
+        const parseDate = (v) => {
+          if (!v || v === '-') return null;
+          if (v instanceof Date) return Ts.fromDate(v);
+          const d = new Date(v);
+          return isNaN(d) ? null : Ts.fromDate(d);
+        };
+
+        b.set(ref, {
+          no: row['No'] || '',
+          type: row['구분'] || '',
+          gender: row['성별'] || '',
+          name: row['이름'] || '',
+          state: row['상태'] || '',
+          phone: row['휴대폰'] || '',
+          pin: row['PIN번호'] || '',
+          message: row['메시지'] || '',
+          status: statusMap[row['이용상태']] || 'none',
+          seatType: row['좌석타입'] || '',
+          ticketName: row['이용권'] || '',
+          seat: row['좌석'] || '',
+          locker: row['사물함'] || '',
+          startDate: parseDate(row['시작일']),
+          endDate: parseDate(row['종료일']),
+          duration: row['이용기간'] || '',
+          totalAmount: parseInt(String(row['누적금액(원)']).replace(/,/g, '')) || 0,
+          source: 'pickko_import',
+          importedAt: Ts.now(),
+        });
+      });
+
+      await b.commit();
+      done += chunk.length;
+
+      const pct = Math.round(done / total * 100);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = `${done} / ${total} 명 완료 (${pct}%)`;
+    }
+
+    // 완료
+    document.getElementById('resultCard').style.display = 'block';
+    document.getElementById('resultBody').innerHTML = `
+      <div class="result-ok">✅ 업로드 완료! 총 ${done}명 Firebase에 저장됐어.</div>
+      <div style="margin-top:12px;font-size:13px;color:#666">
+        이제 대시보드에서 회원 목록 확인할 수 있어 👉 <a href="studycafe-dashboard.html" style="color:#4a7ef5">대시보드 열기</a>
+      </div>
+    `;
+    btn.textContent = '✅ 완료';
+
+  } catch (err) {
+    document.getElementById('resultCard').style.display = 'block';
+    document.getElementById('resultBody').innerHTML = `<div class="result-err">❌ 오류 발생: ${err.message}</div>`;
+    btn.disabled = false;
+    btn.textContent = '다시 시도';
+    console.error(err);
+  }
+};
+</script>
+</body>
+</html>
