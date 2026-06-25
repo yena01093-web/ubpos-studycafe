@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ubpos 키오스크</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: #0f172a;
+    color: white;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* 메인 화면 */
+  .screen { display: none; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; }
+  .screen.active { display: flex; }
+
+  /* 상단 로고 */
+  .kiosk-logo {
+    position: absolute; top: 32px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .kiosk-logo .logo-box {
+    width: 36px; height: 36px; background: #3b82f6; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: white;
+  }
+  .kiosk-logo .logo-text { font-size: 18px; font-weight: 700; color: #e2e8f0; letter-spacing: -0.5px; }
+
+  .clock {
+    position: absolute; top: 36px; right: 40px;
+    font-size: 16px; font-weight: 500; color: #475569;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 대기 화면 */
+  .idle-title { font-size: 42px; font-weight: 800; color: white; text-align: center; line-height: 1.2; margin-bottom: 12px; }
+  .idle-sub { font-size: 18px; color: #64748b; margin-bottom: 48px; }
+  .idle-btn {
+    background: #3b82f6; color: white; border: none;
+    padding: 18px 60px; border-radius: 16px; font-size: 20px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+    box-shadow: 0 8px 30px rgba(59,130,246,0.35);
+  }
+  .idle-btn:hover { background: #2563eb; transform: scale(1.02); }
+  .idle-btn:active { transform: scale(0.98); }
+
+  /* 입력 화면 */
+  .input-wrap { width: 100%; max-width: 420px; padding: 0 20px; }
+
+  .input-title { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 6px; }
+  .input-sub { font-size: 14px; color: #64748b; text-align: center; margin-bottom: 32px; }
+
+  .phone-display {
+    background: #1e293b; border: 2px solid #334155; border-radius: 14px;
+    padding: 18px 24px; text-align: center; margin-bottom: 24px;
+    min-height: 72px; display: flex; align-items: center; justify-content: center;
+  }
+  .phone-display .number {
+    font-size: 36px; font-weight: 800; letter-spacing: 4px;
+    color: white; font-variant-numeric: tabular-nums;
+  }
+  .phone-display .placeholder { font-size: 18px; color: #334155; }
+
+  /* 키패드 */
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .key {
+    background: #1e293b; border: 1px solid #2d3748; border-radius: 12px;
+    padding: 20px 10px; text-align: center; cursor: pointer;
+    font-size: 26px; font-weight: 700; color: white;
+    transition: all 0.1s; font-family: inherit;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .key:hover { background: #263347; border-color: #3b82f6; }
+  .key:active { transform: scale(0.95); background: #1d4ed8; }
+  .key.del { font-size: 18px; color: #ef4444; }
+  .key.zero { grid-column: 2; }
+  .key.confirm {
+    grid-column: 1 / -1; background: #3b82f6; border-color: #3b82f6;
+    font-size: 18px; padding: 16px;
+    box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+  }
+  .key.confirm:hover { background: #2563eb; }
+
+  .back-btn {
+    background: none; border: none; color: #475569; font-size: 14px;
+    cursor: pointer; font-family: inherit; margin-top: 4px; padding: 8px;
+    display: flex; align-items: center; gap: 5px; margin: 0 auto;
+    transition: color 0.1s;
+  }
+  .back-btn:hover { color: #94a3b8; }
+
+  /* 회원 확인 화면 */
+  .member-card-wrap { width: 100%; max-width: 400px; padding: 0 20px; }
+
+  .member-info-card {
+    background: #1e293b; border: 1px solid #2d3748; border-radius: 16px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  .mic-top { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .mic-avatar {
+    width: 52px; height: 52px; border-radius: 14px; background: #3b82f6;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; color: white; flex-shrink: 0;
+  }
+  .mic-name { font-size: 22px; font-weight: 800; color: white; }
+  .mic-type { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+  .mic-rows { display: flex; flex-direction: column; gap: 8px; }
+  .mic-row { display: flex; justify-content: space-between; font-size: 13px; padding: 8px 0; border-bottom: 1px solid #2d3748; }
+  .mic-row:last-child { border-bottom: none; }
+  .mic-label { color: #64748b; }
+  .mic-val { font-weight: 600; color: #e2e8f0; }
+  .mic-val.green { color: #22c55e; }
+  .mic-val.red { color: #ef4444; }
+  .mic-val.blue { color: #60a5fa; }
+
+  .action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .action-btn {
+    padding: 16px; border-radius: 12px; border: none;
+    font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+    transition: all 0.12s;
+  }
+  .action-btn.checkin { background: #22c55e; color: white; grid-column: 1 / -1; font-size: 17px; padding: 18px; box-shadow: 0 4px 16px rgba(34,197,94,0.3); }
+  .action-btn.checkin:hover { background: #16a34a; }
+  .action-btn.cancel { background: #1e293b; color: #64748b; border: 1px solid #2d3748; }
+  .action-btn.cancel:hover { background: #263347; }
+  .action-btn.checkout { background: #fee2e2; color: #dc2626; }
+  .action-btn.checkout:hover { background: #fecaca; }
+
+  /* 완료 화면 */
+  .complete-icon {
+    width: 80px; height: 80px; border-radius: 50%;
+    background: #22c55e; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px; font-size: 36px;
+    box-shadow: 0 0 0 16px rgba(34,197,94,0.1);
+  }
+  .complete-title { font-size: 28px; font-weight: 800; text-align: center; margin-bottom: 8px; }
+  .complete-sub { font-size: 15px; color: #64748b; text-align: center; margin-bottom: 32px; }
+  .complete-info {
+    background: #1e293b; border-radius: 12px; padding: 16px 24px;
+    font-size: 14px; color: #94a3b8; text-align: center; margin-bottom: 24px;
+  }
+  .complete-info strong { color: #e2e8f0; font-size: 16px; }
+
+  /* 오류 */
+  .error-icon { font-size: 52px; text-align: center; margin-bottom: 16px; }
+  .error-title { font-size: 24px; font-weight: 800; text-align: center; color: #ef4444; margin-bottom: 8px; }
+  .error-sub { font-size: 14px; color: #64748b; text-align: center; margin-bottom: 32px; }
+
+  /* 로딩 */
+  .loading-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .sp { width: 40px; height: 40px; border: 3px solid #1e293b; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 16px; color: #64748b; }
+</style>
+</head>
+<body>
+
+<!-- 대기 화면 -->
+<div class="screen active" id="screen-idle">
+  <div class="kiosk-logo">
+    <div class="logo-box">U</div>
+    <span class="logo-text">ubpos 스터디카페</span>
+  </div>
+  <div class="clock" id="clock"></div>
+  <div class="idle-title">안녕하세요<br>비허밍 스터디카페입니다</div>
+  <div class="idle-sub">화면을 터치해서 시작하세요</div>
+  <button class="idle-btn" onclick="goTo('screen-input')">입장 / 퇴장</button>
+</div>
+
+<!-- 번호 입력 화면 -->
+<div class="screen" id="screen-input">
+  <div class="kiosk-logo">
+    <div class="logo-box">U</div>
+    <span class="logo-text">ubpos 스터디카페</span>
+  </div>
+  <div class="input-wrap">
+    <div class="input-title">휴대폰 번호 입력</div>
+    <div class="input-sub">뒤 4자리 또는 전체 번호를 입력하세요</div>
+
+    <div class="phone-display">
+      <div class="number" id="phoneDisplay"><span class="placeholder">번호를 입력하세요</span></div>
+    </div>
+
+    <div class="keypad">
+      <button class="key" onclick="pressKey('1')">1</button>
+      <button class="key" onclick="pressKey('2')">2</button>
+      <button class="key" onclick="pressKey('3')">3</button>
+      <button class="key" onclick="pressKey('4')">4</button>
+      <button class="key" onclick="pressKey('5')">5</button>
+      <button class="key" onclick="pressKey('6')">6</button>
+      <button class="key" onclick="pressKey('7')">7</button>
+      <button class="key" onclick="pressKey('8')">8</button>
+      <button class="key" onclick="pressKey('9')">9</button>
+      <button class="key del" onclick="pressDelete()">⌫</button>
+      <button class="key zero" onclick="pressKey('0')">0</button>
+      <button class="key confirm" onclick="confirmPhone()">확인</button>
+    </div>
+
+    <button class="back-btn" onclick="goTo('screen-idle')">← 취소</button>
+  </div>
+</div>
+
+<!-- 로딩 화면 -->
+<div class="screen" id="screen-loading">
+  <div class="loading-wrap">
+    <div class="sp"></div>
+    <div class="loading-text">회원 정보 확인중...</div>
+  </div>
+</div>
+
+<!-- 회원 확인 화면 -->
+<div class="screen" id="screen-member">
+  <div class="kiosk-logo">
+    <div class="logo-box">U</div>
+    <span class="logo-text">ubpos 스터디카페</span>
+  </div>
+  <div class="member-card-wrap">
+    <div class="member-info-card" id="memberInfoCard"></div>
+    <div class="action-btns" id="actionBtns"></div>
+  </div>
+</div>
+
+<!-- 완료 화면 -->
+<div class="screen" id="screen-complete">
+  <div class="complete-icon">✓</div>
+  <div class="complete-title" id="completeTitle">입장 완료!</div>
+  <div class="complete-sub" id="completeSub"></div>
+  <div class="complete-info" id="completeInfo"></div>
+</div>
+
+<!-- 오류 화면 -->
+<div class="screen" id="screen-error">
+  <div class="error-icon">⚠</div>
+  <div class="error-title" id="errorTitle">회원을 찾을 수 없습니다</div>
+  <div class="error-sub" id="errorSub">입력하신 번호로 등록된 회원이 없습니다</div>
+  <button class="idle-btn" onclick="goTo('screen-input')" style="background:#ef4444;box-shadow:none">다시 시도</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs, doc, updateDoc, query, where, Timestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey: "AIzaSyB3GpTi8-EZ-JQ5ZAzVPaHqFaDXwBJntBQ",
+  authDomain: "ubpos-studycafe.firebaseapp.com",
+  projectId: "ubpos-studycafe",
+  storageBucket: "ubpos-studycafe.firebasestorage.app",
+  messagingSenderId: "693479765771",
+  appId: "1:693479765771:web:6ef7f98a7a61f1635b140e"
+});
+const db = getFirestore(app);
+
+let phoneInput = '';
+let foundMember = null;
+
+// 시계
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleString('ko-KR', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// 화면 전환
+window.goTo = function(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screen-idle') { phoneInput = ''; foundMember = null; }
+};
+
+// 키패드
+window.pressKey = function(k) {
+  if (phoneInput.length >= 11) return;
+  phoneInput += k;
+  updateDisplay();
+};
+
+window.pressDelete = function() {
+  phoneInput = phoneInput.slice(0, -1);
+  updateDisplay();
+};
+
+function updateDisplay() {
+  const el = document.getElementById('phoneDisplay');
+  if (!phoneInput) {
+    el.innerHTML = '<span class="placeholder">번호를 입력하세요</span>';
+    return;
+  }
+  // 010-xxxx-xxxx 포맷
+  let fmt = phoneInput;
+  if (phoneInput.length > 3 && phoneInput.length <= 7) fmt = phoneInput.slice(0,3) + '-' + phoneInput.slice(3);
+  else if (phoneInput.length > 7) fmt = phoneInput.slice(0,3) + '-' + phoneInput.slice(3,7) + '-' + phoneInput.slice(7);
+  el.textContent = fmt;
+}
+
+// 확인 버튼
+window.confirmPhone = async function() {
+  if (phoneInput.length < 4) return;
+  goTo('screen-loading');
+
+  try {
+    const snap = await getDocs(collection(db, 'members'));
+    let found = null;
+
+    snap.forEach(d => {
+      const m = { id: d.id, ...d.data() };
+      const phone = (m.phone || '').replace(/-/g, '');
+      const input = phoneInput.replace(/-/g, '');
+      // 뒤 4자리 또는 전체 매칭
+      if (phone === input || phone.endsWith(input) || phone.includes(input)) {
+        if (!found) found = m;
+      }
+    });
+
+    if (!found) {
+      document.getElementById('errorTitle').textContent = '회원을 찾을 수 없습니다';
+      document.getElementById('errorSub').textContent = `"${phoneInput}" 으로 등록된 회원이 없습니다`;
+      goTo('screen-error');
+      setTimeout(() => goTo('screen-input'), 4000);
+      return;
+    }
+
+    foundMember = found;
+    showMemberScreen(found);
+
+  } catch (e) {
+    document.getElementById('errorTitle').textContent = '오류가 발생했습니다';
+    document.getElementById('errorSub').textContent = e.message;
+    goTo('screen-error');
+    setTimeout(() => goTo('screen-idle'), 4000);
+  }
+};
+
+function showMemberScreen(m) {
+  // 좌석 찾기
+  const endStr = m.endDate
+    ? (m.endDate.toDate ? m.endDate.toDate() : new Date(m.endDate)).toLocaleDateString('ko-KR')
+    : '-';
+
+  const statusColor = m.status === 'active' ? 'green' : m.status === 'ended' ? 'red' : 'blue';
+  const statusText = m.status === 'active' ? '이용중' : m.status === 'ended' ? '이용종료' : '미이용';
+
+  document.getElementById('memberInfoCard').innerHTML = `
+    <div class="mic-top">
+      <div class="mic-avatar">${(m.name||'?')[0]}</div>
+      <div>
+        <div class="mic-name">${m.name || '-'}</div>
+        <div class="mic-type">${m.type || '성인'} · ${m.gender || ''}</div>
+      </div>
+    </div>
+    <div class="mic-rows">
+      <div class="mic-row"><span class="mic-label">이용권</span><span class="mic-val blue">${m.ticketName || '-'}</span></div>
+      <div class="mic-row"><span class="mic-label">좌석타입</span><span class="mic-val">${m.seatType || '-'}</span></div>
+      <div class="mic-row"><span class="mic-label">종료일</span><span class="mic-val">${endStr}</span></div>
+      <div class="mic-row"><span class="mic-label">상태</span><span class="mic-val ${statusColor}">${statusText}</span></div>
+    </div>
+  `;
+
+  document.getElementById('actionBtns').innerHTML = `
+    <button class="action-btn checkin" onclick="doCheckin()">입장하기</button>
+    <button class="action-btn cancel" onclick="goTo('screen-input')">취소</button>
+    <button class="action-btn checkout" onclick="doCheckout()">퇴장하기</button>
+  `;
+
+  goTo('screen-member');
+  setTimeout(() => { if (document.getElementById('screen-member').classList.contains('active')) goTo('screen-idle'); }, 30000);
+}
+
+window.doCheckin = async function() {
+  if (!foundMember) return;
+  // 빈 좌석 자동 배정
+  const seatsSnap = await getDocs(collection(db, 'seats'));
+  let emptySeat = null;
+  seatsSnap.forEach(d => { if (!emptySeat && d.data().status === 'empty' && d.data().type !== '관리자석') emptySeat = { id: d.id, ...d.data() }; });
+
+  if (!emptySeat) {
+    document.getElementById('errorTitle').textContent = '빈 자리가 없습니다';
+    document.getElementById('errorSub').textContent = '현재 모든 좌석이 이용중입니다';
+    goTo('screen-error');
+    setTimeout(() => goTo('screen-idle'), 4000);
+    return;
+  }
+
+  const end = new Date(); end.setHours(end.getHours() + 4);
+  await updateDoc(doc(db, 'seats', emptySeat.id), {
+    status: 'occupied', memberId: foundMember.id,
+    memberName: foundMember.name, memberGender: foundMember.gender || '',
+    ticketName: foundMember.ticketName || '', endTime: Timestamp.fromDate(end)
+  });
+
+  document.getElementById('completeTitle').textContent = '입장 완료!';
+  document.getElementById('completeSub').textContent = `${foundMember.name}님, 환영합니다`;
+  document.getElementById('completeInfo').innerHTML = `배정 좌석 <strong>${emptySeat.number}번</strong>`;
+  goTo('screen-complete');
+  setTimeout(() => goTo('screen-idle'), 5000);
+};
+
+window.doCheckout = async function() {
+  if (!foundMember) return;
+  const seatsSnap = await getDocs(collection(db, 'seats'));
+  let mySeat = null;
+  seatsSnap.forEach(d => { if (d.data().memberId === foundMember.id) mySeat = { id: d.id, ...d.data() }; });
+
+  if (mySeat) {
+    await updateDoc(doc(db, 'seats', mySeat.id), {
+      status: 'empty', memberId: null, memberName: null,
+      memberGender: null, ticketName: null, endTime: null, endDate: null
+    });
+  }
+
+  document.getElementById('completeTitle').textContent = '퇴장 완료!';
+  document.getElementById('completeSub').textContent = `${foundMember.name}님, 수고하셨습니다`;
+  document.getElementById('completeInfo').innerHTML = mySeat ? `<strong>${mySeat.number}번</strong> 좌석 반납 완료` : '퇴장 처리 완료';
+  goTo('screen-complete');
+  setTimeout(() => goTo('screen-idle'), 5000);
+};
+</script>
+</body>
+</html>
